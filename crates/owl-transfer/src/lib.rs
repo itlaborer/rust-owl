@@ -215,7 +215,11 @@ impl Transfer for SftpTransfer {
 }
 
 fn effective_timeout(requested: u64, default_secs: u64) -> u64 {
-    if requested == 0 { default_secs } else { requested }
+    if requested == 0 {
+        default_secs
+    } else {
+        requested
+    }
 }
 
 /// 在一条已建立的 SFTP 会话内上传单个文件。
@@ -481,9 +485,9 @@ pub(crate) async fn ensure_remote_dir(sftp: &SftpSession, path: &str) -> Result<
         match sftp.try_exists(&cur).await {
             Ok(true) => continue,
             Ok(false) => {
-                sftp.create_dir(&cur).await.map_err(|e| {
-                    OwlError::Transfer(format!("创建远端目录 {} 失败: {}", cur, e))
-                })?;
+                sftp.create_dir(&cur)
+                    .await
+                    .map_err(|e| OwlError::Transfer(format!("创建远端目录 {} 失败: {}", cur, e)))?;
             }
             Err(e) => {
                 return Err(OwlError::Transfer(format!(

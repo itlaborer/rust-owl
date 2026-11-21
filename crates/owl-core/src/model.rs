@@ -14,10 +14,7 @@ pub struct TargetSelector {
 
 impl TargetSelector {
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-            && self.groups.is_empty()
-            && self.labels.is_empty()
-            && !self.all
+        self.nodes.is_empty() && self.groups.is_empty() && self.labels.is_empty() && !self.all
     }
 }
 

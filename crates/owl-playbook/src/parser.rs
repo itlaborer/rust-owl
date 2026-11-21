@@ -4,7 +4,7 @@
 use crate::model::*;
 use owl_core::error::{OwlError, Result};
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub struct Parser {
@@ -31,18 +31,13 @@ impl Parser {
     }
 
     pub fn parse(&mut self, content: &str) -> Result<ParsedPlaybook> {
-        let raw: Playbook = serde_yaml::from_str(content)
-            .map_err(|e| OwlError::PlaybookParse(e.to_string()))?;
+        let raw: Playbook =
+            serde_yaml::from_str(content).map_err(|e| OwlError::PlaybookParse(e.to_string()))?;
 
         let mode = match raw.execution_mode.as_str() {
             "pipeline" => ExecutionMode::Pipeline,
             "" | "fail_continue" => ExecutionMode::FailContinue,
-            other => {
-                return Err(OwlError::PlaybookParse(format!(
-                    "未知执行模式: {}",
-                    other
-                )))
-            }
+            other => return Err(OwlError::PlaybookParse(format!("未知执行模式: {}", other))),
         };
 
         // pipeline 模式禁止 post_tasks
@@ -80,12 +75,7 @@ impl Parser {
                 continue;
             }
 
-            let action = t
-                .action
-                .split_whitespace()
-                .next()
-                .unwrap_or("")
-                .to_string();
+            let action = t.action.split_whitespace().next().unwrap_or("").to_string();
 
             let condition = if t.when.is_empty() {
                 None
@@ -129,8 +119,7 @@ impl Parser {
             .and_then(|v| v.as_str())
             .ok_or_else(|| OwlError::PlaybookParse("include 缺少 playbook 参数".into()))?;
         let path = self.base_dir.join(path_str);
-        let canonical = std::fs::canonicalize(&path)
-            .unwrap_or_else(|_| path.clone());
+        let canonical = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
 
         if self.visited_includes.contains(&canonical) {
             return Err(OwlError::PlaybookParse(format!(
@@ -142,8 +131,8 @@ impl Parser {
 
         let content = std::fs::read_to_string(&path)
             .map_err(|e| OwlError::PlaybookParse(format!("读取 include {:?}: {}", path, e)))?;
-        let raw: Playbook = serde_yaml::from_str(&content)
-            .map_err(|e| OwlError::PlaybookParse(e.to_string()))?;
+        let raw: Playbook =
+            serde_yaml::from_str(&content).map_err(|e| OwlError::PlaybookParse(e.to_string()))?;
 
         let mut out = vec![];
         out.extend(self.parse_tasks(&raw.pre_tasks)?);

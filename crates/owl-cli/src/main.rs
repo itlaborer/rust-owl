@@ -4,9 +4,14 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use owl_node::{LocalNodeStore, NodeResolver, ResolvedNode};
 use owl_ssh::Executor as _;
+use std::collections::HashMap;
 
 #[derive(Parser)]
-#[command(name = "owl", version = "0.1.0", about = "智能分布式运维工具 (Rust 重写版)")]
+#[command(
+    name = "owl",
+    version = "0.1.0",
+    about = "智能分布式运维工具 (Rust 重写版)"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -175,8 +180,7 @@ async fn main() -> Result<()> {
     // 初始化日志（对齐原项目 zap）
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -193,13 +197,23 @@ async fn dispatch(cli: Cli) -> Result<()> {
                 table.set_header(["ID", "名称", "地址", "端口", "用户", "分组"]);
                 for n in store.list() {
                     table.add_row([
-                        n.id, n.name, n.address,
-                        n.port.to_string(), n.user, n.groups.join(","),
+                        n.id,
+                        n.name,
+                        n.address,
+                        n.port.to_string(),
+                        n.user,
+                        n.groups.join(","),
                     ]);
                 }
                 println!("{table}");
             }
-            NodeAction::Add { name, address, user, port, groups } => {
+            NodeAction::Add {
+                name,
+                address,
+                user,
+                port,
+                groups,
+            } => {
                 let mut store = LocalNodeStore::load_default();
                 let node = ResolvedNode {
                     id: name.clone(),
@@ -226,9 +240,16 @@ async fn dispatch(cli: Cli) -> Result<()> {
                 }
             }
         },
-        Commands::Exec { command, nodes, groups, label: _, all, timeout } => {
+        Commands::Exec {
+            command,
+            nodes,
+            groups,
+            label,
+            all,
+            timeout,
+        } => {
             let resolver = NodeResolver::new();
-            // 目标节点：优先 --nodes；否则按分组/全部从本地存储筛选
+            // 目标节点：优先 --nodes；否则按分组/标签/全部从本地存储筛选
             let targets = if !nodes.is_empty() {
                 resolver.resolve_many(&nodes)?
             } else {
@@ -236,9 +257,19 @@ async fn dispatch(cli: Cli) -> Result<()> {
                 let mut list = store.list();
                 if !groups.is_empty() {
                     list.retain(|n| n.groups.iter().any(|g| groups.contains(g)));
-                } else if !all {
+                }
+                if !label.is_empty() {
+                    // --label 支持 key=value（精确）或 key（存在即可）
+                    list.retain(|n| {
+                        label.iter().any(|sel| match sel.split_once('=') {
+                            Some((k, v)) => n.labels.get(k).map(|x| x == v).unwrap_or(false),
+                            None => n.labels.contains_key(sel),
+                        })
+                    });
+                }
+                if groups.is_empty() && label.is_empty() && !all {
                     // 未指定目标时给出提示，避免误操作全网
-                    anyhow::bail!("请指定 --nodes / --groups 或 --all");
+                    anyhow::bail!("请指定 --nodes / --groups / --label 或 --all");
                 }
                 list
             };
@@ -247,18 +278,41 @@ async fn dispatch(cli: Cli) -> Result<()> {
             }
 
             let batch = owl_exec::BatchExecutor::new(timeout);
-            let opts = owl_exec::BatchOptions { timeout_secs: timeout, ..Default::default() };
+            let opts = owl_exec::BatchOptions {
+                timeout_secs: timeout,
+                ..Default::default()
+            };
             let results = batch.run(&targets, &command, &opts).await?;
+
+            // 执行结果落历史库（best-effort，写失败不影响命令本身）
+            match owl_history::HistoryDb::open() {
+                Ok(db) => {
+                    for r in &results {
+                        if let Err(e) = db.record_exec(r) {
+                            tracing::warn!("写入执行历史失败: {e}");
+                        }
+                    }
+                }
+                Err(e) => tracing::warn!("打开历史库失败: {e}"),
+            }
 
             let mut table = comfy_table::Table::new();
             table.set_header(["节点", "退出码", "状态", "耗时(ms)", "输出"]);
             for r in &results {
-                let output = if r.stdout.is_empty() { &r.stderr } else { &r.stdout };
+                let output = if r.stdout.is_empty() {
+                    &r.stderr
+                } else {
+                    &r.stdout
+                };
                 let preview: String = output.chars().take(120).collect();
                 table.add_row([
                     r.node_name.clone(),
                     r.exit_code.to_string(),
-                    if r.success { "✓".into() } else { "✗".into() },
+                    if r.success {
+                        "✓".into()
+                    } else {
+                        "✗".into()
+                    },
                     r.duration_ms.to_string(),
                     preview,
                 ]);
@@ -266,8 +320,8 @@ async fn dispatch(cli: Cli) -> Result<()> {
             println!("{table}");
         }
         Commands::File { action } => {
-            use owl_transfer::Transfer as _;
             use owl_transfer::sync::{SyncAction, SyncDirection, SyncOptions};
+            use owl_transfer::Transfer as _;
 
             match action {
                 FileAction::Sync {
@@ -291,7 +345,11 @@ async fn dispatch(cli: Cli) -> Result<()> {
                     };
 
                     let opts = SyncOptions {
-                        direction: if pull { SyncDirection::Pull } else { SyncDirection::Push },
+                        direction: if pull {
+                            SyncDirection::Pull
+                        } else {
+                            SyncDirection::Push
+                        },
                         delete,
                         checksum,
                         dry_run,
@@ -304,7 +362,9 @@ async fn dispatch(cli: Cli) -> Result<()> {
                     let transfer = owl_transfer::SftpTransfer::new(timeout);
 
                     let mut summary = comfy_table::Table::new();
-                    summary.set_header(["节点", "方向", "新增", "更新", "跳过", "删除", "字节", "状态"]);
+                    summary.set_header([
+                        "节点", "方向", "新增", "更新", "跳过", "删除", "字节", "状态",
+                    ]);
                     let mut detail = comfy_table::Table::new();
                     detail.set_header(["节点", "文件", "动作", "原因"]);
                     let mut detail_rows = 0usize;
@@ -324,12 +384,21 @@ async fn dispatch(cli: Cli) -> Result<()> {
                                     r.deleted.to_string(),
                                     r.bytes.to_string(),
                                     if r.success {
-                                        if dry_run { "计划".into() } else { "✓".into() }
+                                        if dry_run {
+                                            "计划".into()
+                                        } else {
+                                            "✓".into()
+                                        }
                                     } else {
                                         format!("✗ {}", r.errors.len())
                                     },
                                 ]);
-                                for c in r.changes.iter().filter(|c| c.action != SyncAction::Skip).take(80) {
+                                for c in r
+                                    .changes
+                                    .iter()
+                                    .filter(|c| c.action != SyncAction::Skip)
+                                    .take(80)
+                                {
                                     detail.add_row([
                                         r.node_name.clone(),
                                         c.rel.clone(),
@@ -346,7 +415,11 @@ async fn dispatch(cli: Cli) -> Result<()> {
                                 summary.add_row([
                                     n.name.clone(),
                                     opts.direction.as_str().into(),
-                                    "0".into(), "0".into(), "0".into(), "0".into(), "0".into(),
+                                    "0".into(),
+                                    "0".into(),
+                                    "0".into(),
+                                    "0".into(),
+                                    "0".into(),
                                     format!("✗ {}", e),
                                 ]);
                             }
@@ -358,7 +431,13 @@ async fn dispatch(cli: Cli) -> Result<()> {
                         println!("{detail}");
                     }
                 }
-                FileAction::Upload { local, nodes, dest, no_overwrite, no_resume } => {
+                FileAction::Upload {
+                    local,
+                    nodes,
+                    dest,
+                    no_overwrite,
+                    no_resume,
+                } => {
                     let resolver = NodeResolver::new();
                     let targets = if nodes.is_empty() {
                         anyhow::bail!("上传需指定 --nodes");
@@ -397,7 +476,11 @@ async fn dispatch(cli: Cli) -> Result<()> {
                             Ok(r) => {
                                 table.add_row([
                                     r.node_name,
-                                    if r.success { "✓".into() } else { "✗".into() },
+                                    if r.success {
+                                        "✓".into()
+                                    } else {
+                                        "✗".into()
+                                    },
                                     r.bytes.to_string(),
                                     r.message,
                                 ]);
@@ -409,7 +492,14 @@ async fn dispatch(cli: Cli) -> Result<()> {
                     }
                     println!("{table}");
                 }
-                FileAction::Download { remote, node, dest, subdir: _, no_overwrite, no_resume } => {
+                FileAction::Download {
+                    remote,
+                    node,
+                    dest,
+                    subdir,
+                    no_overwrite,
+                    no_resume,
+                } => {
                     let resolver = NodeResolver::new();
                     let targets = resolver.resolve_many(&[node.clone()])?;
                     let opts = owl_transfer::TransferOptions {
@@ -422,28 +512,53 @@ async fn dispatch(cli: Cli) -> Result<()> {
                     // 本地路径：以 / 结尾或已存在目录视为目录，拼接远端文件名
                     let file_name = remote.rsplit('/').next().unwrap_or("downloaded");
                     let is_dir = dest.ends_with('/') || std::path::Path::new(&dest).is_dir();
-                    let local_path = if is_dir {
-                        format!("{}{}", dest.trim_end_matches('/'), std::path::MAIN_SEPARATOR)
-                            + file_name
+                    let base_dir = if is_dir {
+                        dest.trim_end_matches('/').to_string()
                     } else {
-                        dest.clone()
+                        std::path::Path::new(&dest)
+                            .parent()
+                            .map(|p| p.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| ".".into())
                     };
 
                     let mut table = comfy_table::Table::new();
                     table.set_header(["节点", "状态", "字节", "本地路径", "说明"]);
                     for n in &targets {
+                        // --subdir：按节点名建子目录，避免多节点同名文件互相覆盖
+                        let local_path = if subdir {
+                            let d = std::path::Path::new(&base_dir).join(&n.name);
+                            let _ = std::fs::create_dir_all(&d);
+                            d.join(file_name).to_string_lossy().into_owned()
+                        } else if is_dir {
+                            std::path::Path::new(&base_dir)
+                                .join(file_name)
+                                .to_string_lossy()
+                                .into_owned()
+                        } else {
+                            dest.clone()
+                        };
                         match transfer.download_with(n, &remote, &local_path, &opts).await {
                             Ok(r) => {
                                 table.add_row([
                                     r.node_name,
-                                    if r.success { "✓".into() } else { "✗".into() },
+                                    if r.success {
+                                        "✓".into()
+                                    } else {
+                                        "✗".into()
+                                    },
                                     r.bytes.to_string(),
                                     r.local_path,
                                     r.message,
                                 ]);
                             }
                             Err(e) => {
-                                table.add_row([n.name.clone(), "✗".into(), "0".into(), local_path.clone(), e.to_string()]);
+                                table.add_row([
+                                    n.name.clone(),
+                                    "✗".into(),
+                                    "0".into(),
+                                    local_path.clone(),
+                                    e.to_string(),
+                                ]);
                             }
                         }
                     }
@@ -452,7 +567,30 @@ async fn dispatch(cli: Cli) -> Result<()> {
             }
         }
         Commands::Playbook { action } => match action {
-            PlaybookAction::List => println!("(playbook list) phase1 骨架"),
+            PlaybookAction::List => {
+                // 列出 owl_home/playbooks 下的 .yml/.yaml 剧本
+                let dir = owl_core::config::owl_home().join("playbooks");
+                let mut table = comfy_table::Table::new();
+                table.set_header(["文件", "剧本名"]);
+                if let Ok(rd) = std::fs::read_dir(&dir) {
+                    for ent in rd.flatten() {
+                        let p = ent.path();
+                        let is_yaml = p
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .map(|s| s == "yml" || s == "yaml")
+                            .unwrap_or(false);
+                        if !is_yaml {
+                            continue;
+                        }
+                        let name = owl_playbook::Parser::from_file(&p)
+                            .map(|pb| pb.raw.name)
+                            .unwrap_or_else(|_| p.to_string_lossy().into_owned());
+                        table.add_row([p.to_string_lossy().into_owned(), name]);
+                    }
+                }
+                println!("{table}");
+            }
             PlaybookAction::Validate { path } => {
                 let pb = owl_playbook::Parser::from_file(std::path::Path::new(&path));
                 match pb {
@@ -460,13 +598,95 @@ async fn dispatch(cli: Cli) -> Result<()> {
                     Err(e) => println!("剧本校验失败: {}", e),
                 }
             }
-            PlaybookAction::Run { path, nodes, extra_vars } => {
-                println!("run {} nodes={:?} vars={:?} (phase1 骨架)", path, nodes, extra_vars);
+            PlaybookAction::Run {
+                path,
+                nodes,
+                extra_vars,
+            } => {
+                let pb = owl_playbook::Parser::from_file(std::path::Path::new(&path))?;
+                let resolver = NodeResolver::new();
+                let targets = if nodes.is_empty() {
+                    anyhow::bail!("执行剧本需指定 --nodes");
+                } else {
+                    resolver.resolve_many(&nodes)?
+                };
+                // --extra_vars key=value 解析为变量表
+                let mut vars = HashMap::new();
+                for kv in &extra_vars {
+                    match kv.split_once('=') {
+                        Some((k, v)) => {
+                            vars.insert(k.to_string(), v.to_string());
+                        }
+                        None => anyhow::bail!("--extra_vars 需为 key=value 形式: {kv}"),
+                    }
+                }
+
+                let executor = owl_playbook::PlaybookExecutor::new(60);
+                let report = executor.run(&pb, &targets, &vars).await?;
+
+                // 剧本结果也落历史库
+                if let Ok(db) = owl_history::HistoryDb::open() {
+                    for r in &report.results {
+                        let _ = db.record_exec(r);
+                    }
+                }
+
+                let mut table = comfy_table::Table::new();
+                table.set_header(["节点", "命令", "退出码", "状态", "耗时(ms)"]);
+                for r in &report.results {
+                    table.add_row([
+                        r.node_name.clone(),
+                        r.command.clone(),
+                        r.exit_code.to_string(),
+                        if r.success {
+                            "✓".into()
+                        } else {
+                            "✗".into()
+                        },
+                        r.duration_ms.to_string(),
+                    ]);
+                }
+                println!("{table}");
+                println!(
+                    "\n剧本 {} 执行完成：{} 条结果，{} 个任务失败",
+                    pb.raw.name,
+                    report.results.len(),
+                    report.failed
+                );
             }
         },
         Commands::Session => println!("(session) phase1 骨架"),
         Commands::Settings => println!("(settings) phase1 骨架"),
-        Commands::History { limit } => println!("(history) 最近 {} 条 (phase1 骨架)", limit),
+        Commands::History { limit } => match owl_history::HistoryDb::open() {
+            Ok(db) => match db.recent(limit) {
+                Ok(rows) => {
+                    let mut table = comfy_table::Table::new();
+                    table.set_header(["时间", "节点", "命令", "退出码", "状态"]);
+                    for r in &rows {
+                        table.add_row([
+                            r.started_at
+                                .with_timezone(&chrono::Local)
+                                .format("%m-%d %H:%M:%S")
+                                .to_string(),
+                            r.node_name.clone(),
+                            {
+                                let c: String = r.command.chars().take(50).collect();
+                                c
+                            },
+                            r.exit_code.to_string(),
+                            if r.success {
+                                "✓".into()
+                            } else {
+                                "✗".into()
+                            },
+                        ]);
+                    }
+                    println!("{table}");
+                }
+                Err(e) => println!("读取历史失败: {e}"),
+            },
+            Err(e) => println!("打开历史库失败: {e}"),
+        },
         Commands::Ai { prompt } => println!("ai: {:?} (phase2)", prompt),
         Commands::Serve => println!("serve (phase3)"),
     }

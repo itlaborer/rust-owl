@@ -1,8 +1,8 @@
 //! 危险命令黑名单：对齐原项目 internal/control/blacklist/checker.go。
 //! 默认黑名单 + ~/.owl/blacklist.yaml 自定义。
 
-use owl_core::error::{OwlError, Result};
 use owl_core::config::owl_home;
+use owl_core::error::{OwlError, Result};
 use serde::Deserialize;
 
 const DEFAULT_BLOCKED: &[&str] = &[

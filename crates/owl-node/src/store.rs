@@ -37,7 +37,8 @@ impl LocalNodeStore {
         };
         // save() 序列化的是 self.nodes（HashMap<String, ResolvedNode>），
         // 因此这里必须对称地反序列化成 HashMap，再包回 store，否则解析失败被吞掉导致永远读到空。
-        let nodes: HashMap<String, ResolvedNode> = serde_json::from_str(&content).unwrap_or_default();
+        let nodes: HashMap<String, ResolvedNode> =
+            serde_json::from_str(&content).unwrap_or_default();
         Self { nodes }
     }
 

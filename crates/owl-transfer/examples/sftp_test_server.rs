@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use russh::keys::{Algorithm, PrivateKey};
 use russh::server::{Auth, ChannelOpenHandle, Msg, Server as _, Session, VerifiedPublicKey};
-use russh::{Channel, ChannelId, server};
+use russh::{server, Channel, ChannelId};
 use russh_sftp::protocol::{
     Attrs, Data, File, FileAttributes, Handle, Name, OpenFlags, Status, StatusCode, Version,
 };
@@ -48,7 +48,11 @@ struct SshSession {
 impl server::Handler for SshSession {
     type Error = anyhow::Error;
 
-    fn auth_password(&mut self, _user: &str, _password: &str) -> impl Future<Output = Result<Auth, Self::Error>> + Send {
+    fn auth_password(
+        &mut self,
+        _user: &str,
+        _password: &str,
+    ) -> impl Future<Output = Result<Auth, Self::Error>> + Send {
         async { Ok(Auth::Accept) }
     }
 
@@ -213,7 +217,11 @@ impl russh_sftp::server::Handler for LocalSftp {
         id: u32,
         path: String,
     ) -> impl Future<Output = Result<Name, Self::Error>> + Send {
-        let p = if path.is_empty() || path == "." { "/".to_string() } else { path };
+        let p = if path.is_empty() || path == "." {
+            "/".to_string()
+        } else {
+            path
+        };
         async move {
             Ok(Name {
                 id,

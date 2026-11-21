@@ -42,7 +42,12 @@ impl PlaybookExecutor {
         vars.extend(extra_vars.clone());
 
         // 依次执行三段
-        for task in pb.pre_tasks.iter().chain(pb.tasks.iter()).chain(pb.post_tasks.iter()) {
+        for task in pb
+            .pre_tasks
+            .iter()
+            .chain(pb.tasks.iter())
+            .chain(pb.post_tasks.iter())
+        {
             self.run_task(task, pb, nodes, &vars, &mut registers, &mut report)
                 .await?;
         }
@@ -112,7 +117,11 @@ fn json_to_string(v: &serde_json::Value) -> String {
 }
 
 /// 变量替换 {{ name }}
-fn render(input: &str, vars: &HashMap<String, String>, registers: &HashMap<String, String>) -> String {
+fn render(
+    input: &str,
+    vars: &HashMap<String, String>,
+    registers: &HashMap<String, String>,
+) -> String {
     let mut out = input.to_string();
     for (k, v) in vars.iter().chain(registers.iter()) {
         out = out.replace(&format!("{{{{ {} }}}}", k), v);
@@ -121,7 +130,11 @@ fn render(input: &str, vars: &HashMap<String, String>, registers: &HashMap<Strin
     out
 }
 
-fn eval_condition(expr: &str, vars: &HashMap<String, String>, registers: &HashMap<String, String>) -> bool {
+fn eval_condition(
+    expr: &str,
+    vars: &HashMap<String, String>,
+    registers: &HashMap<String, String>,
+) -> bool {
     let e = render(expr.trim(), vars, registers);
     if e.eq_ignore_ascii_case("false") || e.is_empty() {
         return false;

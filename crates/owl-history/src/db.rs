@@ -33,8 +33,7 @@ impl HistoryDb {
     /// 内存库，便于测试
     #[cfg(test)]
     pub fn in_memory() -> Result<Self> {
-        let conn = Connection::open_in_memory()
-            .map_err(|e| OwlError::Database(e.to_string()))?;
+        let conn = Connection::open_in_memory().map_err(|e| OwlError::Database(e.to_string()))?;
         conn.execute_batch(SCHEMA)
             .map_err(|e| OwlError::Database(e.to_string()))?;
         Ok(Self { conn })

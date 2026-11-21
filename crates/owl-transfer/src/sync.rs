@@ -167,15 +167,25 @@ impl SftpTransfer {
         // 客户端 cwd 而非根目录，导致文件写到未知位置。这里显式保留 "/"。
         let remote_root_normalized = {
             let t = remote_root.trim_end_matches('/');
-            if t.is_empty() { "/" } else { t }
+            if t.is_empty() {
+                "/"
+            } else {
+                t
+            }
         };
         if sftp
             .try_exists(remote_root_normalized)
             .await
             .map_err(|e| OwlError::Transfer(format!("检查远端目录失败: {}", e)))?
         {
-            scan_remote_dir(&sftp, remote_root_normalized, "", &opts.excludes, &mut remote_files)
-                .await?;
+            scan_remote_dir(
+                &sftp,
+                remote_root_normalized,
+                "",
+                &opts.excludes,
+                &mut remote_files,
+            )
+            .await?;
         } else if opts.dry_run {
             // 只出计划时不创建远端目录
         } else {
@@ -253,7 +263,9 @@ impl SftpTransfer {
                     let ok = match opts.direction {
                         SyncDirection::Push => {
                             let remote_str = join_remote(remote_root_normalized, &change.rel);
-                            sftp.remove_file(remote_str.as_str()).await.map_err(|e| e.to_string())
+                            sftp.remove_file(remote_str.as_str())
+                                .await
+                                .map_err(|e| e.to_string())
                         }
                         SyncDirection::Pull => {
                             let local_file = local_path.join(&change.rel);
@@ -263,7 +275,9 @@ impl SftpTransfer {
                         }
                     };
                     if let Err(e) = ok {
-                        report.errors.push(format!("{}: 删除失败 {}", change.rel, e));
+                        report
+                            .errors
+                            .push(format!("{}: 删除失败 {}", change.rel, e));
                     } else if let Some(parent) = parent_rel(&change.rel) {
                         if !parent.is_empty() {
                             deleted_dirs.insert(parent.to_string());
@@ -275,7 +289,9 @@ impl SftpTransfer {
 
         if !opts.dry_run && !deleted_dirs.is_empty() {
             match opts.direction {
-                SyncDirection::Push => prune_remote_dirs(&sftp, remote_root_normalized, &deleted_dirs).await,
+                SyncDirection::Push => {
+                    prune_remote_dirs(&sftp, remote_root_normalized, &deleted_dirs).await
+                }
                 SyncDirection::Pull => prune_local_dirs(local_path, &deleted_dirs),
             }
         }
@@ -297,8 +313,7 @@ fn scan_local_dir(
     let rd = std::fs::read_dir(dir)
         .map_err(|e| OwlError::Transfer(format!("读取本地目录 {:?} 失败: {}", dir, e)))?;
     for item in rd {
-        let item = item
-            .map_err(|e| OwlError::Transfer(format!("读取本地目录项失败: {}", e)))?;
+        let item = item.map_err(|e| OwlError::Transfer(format!("读取本地目录项失败: {}", e)))?;
         let name = item.file_name().to_string_lossy().into_owned();
         let rel = if prefix.is_empty() {
             name
@@ -463,7 +478,8 @@ async fn hash_local(path: &Path) -> Result<u64> {
     let mut buf = vec![0u8; 64 * 1024];
     let mut h = FNV_OFFSET;
     loop {
-        let n = f.read(&mut buf)
+        let n = f
+            .read(&mut buf)
             .await
             .map_err(|e| OwlError::Transfer(format!("校验和读取失败 {:?}: {}", path, e)))?;
         if n == 0 {
@@ -482,7 +498,8 @@ async fn hash_remote(sftp: &SftpSession, path: &str) -> Result<u64> {
     let mut buf = vec![0u8; 64 * 1024];
     let mut h = FNV_OFFSET;
     loop {
-        let n = f.read(&mut buf)
+        let n = f
+            .read(&mut buf)
             .await
             .map_err(|e| OwlError::Transfer(format!("校验和读取失败 {}: {}", path, e)))?;
         if n == 0 {
@@ -498,7 +515,11 @@ async fn hash_remote(sftp: &SftpSession, path: &str) -> Result<u64> {
 fn join_remote(root: &str, rel: &str) -> String {
     let base = root.trim_end_matches('/');
     if rel.is_empty() {
-        if base.is_empty() { "/".to_string() } else { base.to_string() }
+        if base.is_empty() {
+            "/".to_string()
+        } else {
+            base.to_string()
+        }
     } else if base.is_empty() {
         format!("/{}", rel)
     } else {
@@ -508,7 +529,11 @@ fn join_remote(root: &str, rel: &str) -> String {
 
 fn parent_rel(rel: &str) -> Option<&str> {
     let idx = rel.rfind('/')?;
-    if idx == 0 { Some("") } else { Some(&rel[..idx]) }
+    if idx == 0 {
+        Some("")
+    } else {
+        Some(&rel[..idx])
+    }
 }
 
 fn mtime_secs(t: SystemTime) -> Option<u64> {
