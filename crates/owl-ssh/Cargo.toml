@@ -1,0 +1,19 @@
+[package]
+name = "owl-ssh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+owl-core = { path = "../owl-core" }
+owl-node = { path = "../owl-node" }
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+russh.workspace = true
+russh-sftp.workspace = true
+bytes.workspace = true
+dashmap.workspace = true

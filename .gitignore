@@ -1,0 +1,21 @@
+# Rust 编译产物（含各次排障用的独立 target 目录）
+/target/
+/target-*/
+**/target/
+**/target-*/
+
+# Cargo 增量 / 备份
+*.rs.bk
+*.swp
+
+# 本地运行态与测试临时数据
+/.e2e/
+*.log
+.env
+.env.*
+
+# 编辑器 / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

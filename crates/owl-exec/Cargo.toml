@@ -1,0 +1,22 @@
+[package]
+name = "owl-exec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+owl-core = { path = "../owl-core" }
+owl-node = { path = "../owl-node" }
+owl-ssh = { path = "../owl-ssh" }
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+regex.workspace = true

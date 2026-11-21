@@ -1,0 +1,30 @@
+[package]
+name = "owl-transfer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+owl-core = { path = "../owl-core" }
+owl-node = { path = "../owl-node" }
+owl-ssh = { path = "../owl-ssh" }
+russh-sftp.workspace = true
+bytes.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+futures.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+# 本地 SFTP 测试服务器 example 所需（不进入主 crate 依赖）
+russh = { workspace = true }
+rand = "0.10"
+
+[features]
+# P2P 自扩散 / 中继传输，第一阶段先留接口，后续阶段实现
+diffusion = []

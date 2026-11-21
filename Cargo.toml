@@ -1,0 +1,63 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/owl-core",
+    "crates/owl-node",
+    "crates/owl-ssh",
+    "crates/owl-exec",
+    "crates/owl-playbook",
+    "crates/owl-transfer",
+    "crates/owl-history",
+    "crates/owl-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+authors = ["owl-rs contributors"]
+repository = "https://github.com/cangyunye/go-owl"
+
+# 依赖版本集中在 workspace 统一管理，避免各 crate 版本漂移。
+[workspace.dependencies]
+# --- CLI / 配置 / 序列化 ---
+clap = { version = "4.6", features = ["derive", "unicode", "wrap_help"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+# --- 日志 ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# --- 错误 / 通用 ---
+anyhow = "1.0"
+thiserror = "2.0.21"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.11"
+once_cell = "1.20"
+dirs = "5.0"
+# --- 并发 / 异步 ---
+tokio = { version = "1.54", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"
+dashmap = "6.1"
+# --- SSH（纯 Rust，无系统依赖，可交叉编译）---
+# 关闭默认的 aws-lc-rs（其 aws-lc-sys 需 cmake+dlltool，GNU 目标构建困难），
+# 改用 ring 后端：预编译 C + cc，无需 cmake / dlltool / nasm。
+russh = { version = "0.65", default-features = false, features = ["ring", "flate2", "rsa"] }
+russh-keys = "0.49"
+# SFTP 子系统（核心库 transport-agnostic，接收 AsyncRead+AsyncWrite 流，与 russh 无类型冲突）
+russh-sftp = "3.0"
+bytes = "1"
+# --- 数据库（bundled SQLite，免系统 CGO/库）---
+rusqlite = { version = "0.43", features = ["bundled", "serde_json"] }
+# --- HTTP / AI 客户端（native-tls，对齐既有工具链，避开 openssl-sys 编译）---
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "native-tls"] }
+# --- 表格输出 ---
+comfy-table = "7.1"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

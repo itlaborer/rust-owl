@@ -1,0 +1,21 @@
+[package]
+name = "owl-playbook"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+owl-core = { path = "../owl-core" }
+owl-node = { path = "../owl-node" }
+owl-exec = { path = "../owl-exec" }
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+futures.workspace = true
+regex.workspace = true
+chrono.workspace = true

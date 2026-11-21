@@ -1,0 +1,22 @@
+[package]
+name = "owl-history"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+owl-core = { path = "../owl-core" }
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+rusqlite.workspace = true
+dirs.workspace = true
+
+[features]
+# DuckDB 历史后端变体（对应原项目 owl-duckdb，未来监控数据分析用）
+duckdb = []

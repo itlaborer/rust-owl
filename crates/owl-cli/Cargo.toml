@@ -1,0 +1,27 @@
+[package]
+name = "owl-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "owl"
+path = "src/main.rs"
+
+[dependencies]
+owl-core = { path = "../owl-core" }
+owl-node = { path = "../owl-node" }
+owl-ssh = { path = "../owl-ssh" }
+owl-exec = { path = "../owl-exec" }
+owl-playbook = { path = "../owl-playbook" }
+owl-transfer = { path = "../owl-transfer" }
+owl-history = { path = "../owl-history" }
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+comfy-table.workspace = true
+serde_json.workspace = true
+futures.workspace = true

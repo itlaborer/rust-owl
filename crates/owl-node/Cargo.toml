@@ -1,0 +1,18 @@
+[package]
+name = "owl-node"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+owl-core = { path = "../owl-core" }
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+regex.workspace = true
+dirs.workspace = true
+dashmap.workspace = true
