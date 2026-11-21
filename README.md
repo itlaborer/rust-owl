@@ -13,8 +13,11 @@
 | 文件上传/下载 `file upload/download` | ✅ 可用 | SFTP，断点续传、覆盖策略、mtime 保留 |
 | 目录增量同步 `file sync` | ✅ 可用 | rsync 风格 quick-check，只传变化文件 |
 | 剧本 `playbook validate` | ✅ 可用 | YAML 解析校验 |
-| 剧本 `run` / 会话 / 设置 / 历史 | 🚧 骨架 | 命令已接线，逻辑待实现 |
-| AI 助手 `ai` / Web 控制台 `serve` | 🚧 待办 | 规划中的 P2 / P3 |
+| 历史 `history` | ✅ 可用 | SQLite 落库，最近 N 条 |
+| Web 控制台 `serve` | ✅ 可用 | REST API + 单页 UI（节点/执行/历史） |
+| WebSSH | ✅ 可用 | WebSocket ↔ SSH 交互式 PTY shell |
+| 剧本 `run` / 会话 / 设置 | 🚧 骨架 | 命令已接线，逻辑待实现 |
+| AI 助手 `ai` | 🚧 待办 | 规划中的 P2 |
 
 ## 工作区结构
 
@@ -30,6 +33,7 @@ owl-rs/
     ├── owl-playbook/           # YAML 剧本解析/执行
     ├── owl-transfer/           # SFTP 传输 + rsync 式增量同步
     ├── owl-history/            # SQLite 历史（rusqlite bundled）
+    ├── owl-serve/              # Web 控制台 REST + WebSSH（axum）
     └── owl-cli/                # clap 命令树入口
 ```
 
@@ -109,6 +113,31 @@ owl playbook validate deploy.yml
 owl playbook run deploy.yml --nodes web01 --extra_vars env=prod
 ```
 
+### Web 控制台 + WebSSH
+
+```bash
+# 仅本机监听（默认），无需鉴权
+owl serve
+
+# 指定监听地址/端口，并启用令牌鉴权
+owl serve --host 0.0.0.0 --port 8080 --token mySecret
+
+# 令牌也可走环境变量
+OWL_WEB_TOKEN=mySecret owl serve --host 0.0.0.0
+```
+
+浏览器打开 `http://<host>:<port>/`。控制台包含五个视图：
+
+- **概览**：服务状态、节点数、历史记录数、版本。
+- **节点管理**：网页增删节点、Ping 连通性，与 CLI 共用 `~/.owl/nodes.json`。
+- **批量执行**：勾选节点、下发命令，实时查看各节点退出码与输出。
+- **WebSSH**：选节点打开交互式终端（带 PTY，支持方向键/颜色/窗口自适应）。
+- **执行历史**：查询落库的执行记录。
+
+REST 端点：`GET /api/health`、`GET|POST /api/nodes`、`POST /api/nodes/delete`、`POST /api/nodes/ping`、`POST /api/exec`、`GET /api/history?limit=`、`WS /api/ws/ssh?node=&cols=&rows=`。设置令牌后，HTTP 用 `Authorization: Bearer <token>` 或 `?token=`，WebSocket 用 `?token=`。
+
+> **安全提示**：WebSSH 与 exec 会在目标节点上执行真实命令。若 `--host 0.0.0.0` 暴露到网络，务必设置 `--token`；生产环境建议再套一层 HTTPS 反向代理。前端的 xterm.js 走 CDN，离线环境需自行替换 `assets/index.html` 中的脚本地址。
+
 ## 测试
 
 `owl-transfer` 附带一个本地 SFTP 测试服务器 example，可用于端到端回归：
@@ -124,8 +153,8 @@ cargo build -p owl-transfer --example sftp_test_server
 
 ## 路线图
 
-- **P2**：AI 助手（agent loop + tool calling）、剧本条件/循环完整求值、`playbook run` 实体化。
-- **P3**：Web 控制台、监控告警闭环、TUI、DuckDB 分析后端。
+- **P2**：AI 助手（agent loop + tool calling）、剧本条件/循环完整求值。
+- **P3**：✅ Web 控制台 + WebSSH 已落地；待办：监控告警闭环、TUI、DuckDB 分析后端。
 
 ## License
 

@@ -17,6 +17,7 @@ owl-exec = { path = "../owl-exec" }
 owl-playbook = { path = "../owl-playbook" }
 owl-transfer = { path = "../owl-transfer" }
 owl-history = { path = "../owl-history" }
+owl-serve = { path = "../owl-serve" }
 anyhow.workspace = true
 clap.workspace = true
 tokio.workspace = true

@@ -8,6 +8,7 @@ members = [
     "crates/owl-playbook",
     "crates/owl-transfer",
     "crates/owl-history",
+    "crates/owl-serve",
     "crates/owl-cli",
 ]
 
@@ -56,6 +57,11 @@ rusqlite = { version = "0.43", features = ["bundled", "serde_json"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "native-tls"] }
 # --- 表格输出 ---
 comfy-table = "7.1"
+# --- Web 控制台 / WebSSH (owl-serve) ---
+axum = { version = "0.8", features = ["ws"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "trace"] }
+base64 = "0.22"
 
 [profile.release]
 strip = true

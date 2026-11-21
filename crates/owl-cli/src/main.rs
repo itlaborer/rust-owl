@@ -67,8 +67,21 @@ enum Commands {
         /// 自然语言查询
         prompt: Option<String>,
     },
-    /// Web 控制台（phase3）
-    Serve,
+    /// 启动 Web 控制台 + WebSSH
+    Serve {
+        /// 监听地址
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+        /// 监听端口
+        #[arg(long, short, default_value_t = 8080)]
+        port: u16,
+        /// 访问令牌（也可用 OWL_WEB_TOKEN 环境变量）；设置后需 Bearer 鉴权
+        #[arg(long)]
+        token: Option<String>,
+        /// 批量执行默认超时（秒）
+        #[arg(long, default_value_t = 60)]
+        timeout: u64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -688,7 +701,18 @@ async fn dispatch(cli: Cli) -> Result<()> {
             Err(e) => println!("打开历史库失败: {e}"),
         },
         Commands::Ai { prompt } => println!("ai: {:?} (phase2)", prompt),
-        Commands::Serve => println!("serve (phase3)"),
+        Commands::Serve {
+            host,
+            port,
+            token,
+            timeout,
+        } => {
+            // 命令行 token 优先，其次环境变量
+            let token = token
+                .or_else(|| std::env::var("OWL_WEB_TOKEN").ok().filter(|s| !s.is_empty()));
+            println!("Web 控制台启动中 → http://{}:{}", host, port);
+            owl_serve::run(&host, port, token, timeout).await?;
+        }
     }
     Ok(())
 }

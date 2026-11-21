@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>owl · Web 控制台</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --panel2:#1e2739; --line:#2a3550;
+    --text:#dfe6f3; --muted:#8b98b5; --accent:#5b8cff; --accent2:#7c5cff;
+    --ok:#3ddc97; --err:#ff6b6b; --warn:#ffb454;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;
+    background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  header{height:56px;flex:0 0 56px;display:flex;align-items:center;gap:16px;padding:0 20px;
+    background:var(--panel);border-bottom:1px solid var(--line)}
+  header .logo{font-weight:800;font-size:20px;letter-spacing:.5px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;background-clip:text}
+  header .sub{color:var(--muted);font-size:13px}
+  header .spacer{flex:1}
+  .status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .dot.off{background:var(--err)}
+  .layout{flex:1;display:flex;min-height:0}
+  nav{width:190px;flex:0 0 190px;background:var(--panel);border-right:1px solid var(--line);padding:12px 10px}
+  nav button{width:100%;text-align:left;border:0;background:transparent;color:var(--muted);
+    padding:11px 14px;border-radius:8px;font-size:14px;cursor:pointer;margin-bottom:4px;display:flex;gap:10px;align-items:center}
+  nav button:hover{background:var(--panel2);color:var(--text)}
+  nav button.active{background:linear-gradient(90deg,rgba(91,140,255,.22),rgba(124,92,255,.12));color:#fff;font-weight:600}
+  nav .ic{width:18px;text-align:center;font-size:16px}
+  main{flex:1;min-width:0;overflow:auto;padding:22px 26px}
+  .view{display:none}
+  .view.active{display:block}
+  h1{font-size:22px;margin:0 0 4px}
+  .lead{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  .grid{display:grid;gap:14px}
+  .grid.cols4{grid-template-columns:repeat(4,1fr)}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .stat .k{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .stat .v{font-size:28px;font-weight:700}
+  .stat .v.a{color:var(--accent)}
+  button.btn{background:var(--accent);border:0;color:#fff;padding:9px 16px;border-radius:8px;
+    font-size:13px;font-weight:600;cursor:pointer}
+  button.btn:hover{filter:brightness(1.12)}
+  button.btn.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--text)}
+  button.btn.danger{background:var(--err)}
+  button.btn:disabled{opacity:.5;cursor:not-allowed}
+  input,select,textarea{background:var(--bg);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
+  .field{margin-bottom:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row .field{margin-bottom:0}
+  .row .grow{flex:1;min-width:200px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  td.mono,code,pre{font-family:var(--mono)}
+  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+    border-radius:5px;padding:2px 7px;font-size:11px;margin:1px;color:var(--muted)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .badge.ok{background:rgba(61,220,151,.15);color:var(--ok)}
+  .badge.err{background:rgba(255,107,107,.15);color:var(--err)}
+  .badge.wait{background:rgba(255,180,84,.15);color:var(--warn)}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  pre.out{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+    white-space:pre-wrap;word-break:break-all;max-height:340px;overflow:auto;font-size:12px;margin:0}
+  .node-chip{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:0 0 6px;
+    display:flex;align-items:center;gap:10px;background:var(--panel2)}
+  .node-chip .nm{font-weight:600}
+  .node-chip .meta{color:var(--muted);font-size:12px}
+  .node-chip .spacer{flex:1}
+  .term-wrap{height:calc(100vh - 150px);min-height:480px;background:#000;border:1px solid var(--line);
+    border-radius:10px;overflow:hidden;padding:6px}
+  #terminal{height:100%}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .toast{position:fixed;right:22px;bottom:22px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;padding:12px 16px;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.4);
+    transform:translateY(120%);transition:transform .25s;z-index:99;max-width:420px}
+  .toast.show{transform:translateY(0)}
+  .empty{color:var(--muted);text-align:center;padding:34px;font-size:13px}
+  @media(max-width:820px){nav{width:64px;flex-basis:64px}nav button span:last-child{display:none}
+    .grid.cols4{grid-template-columns:repeat(2,1fr)}main{padding:16px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">owl</div>
+  <div class="sub">Web 控制台 · SSH / SFTP / Playbook</div>
+  <div class="spacer"></div>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">连接中…</span></div>
+</header>
+<div class="layout">
+  <nav>
+    <button data-view="dash" class="active"><span class="ic">▦</span><span>概览</span></button>
+    <button data-view="nodes"><span class="ic">▤</span><span>节点管理</span></button>
+    <button data-view="exec"><span class="ic">&gt;_</span><span>批量执行</span></button>
+    <button data-view="ssh"><span class="ic">▣</span><span>WebSSH</span></button>
+    <button data-view="history"><span class="ic">◷</span><span>执行历史</span></button>
+  </nav>
+  <main>
+    <!-- 概览 -->
+    <section class="view active" id="view-dash">
+      <h1>概览</h1>
+      <p class="lead">owl-rs Web 控制台运行状态速览</p>
+      <div class="grid cols4">
+        <div class="stat"><div class="k">服务状态</div><div class="v a" id="statStatus">—</div></div>
+        <div class="stat"><div class="k">节点总数</div><div class="v" id="statNodes">—</div></div>
+        <div class="stat"><div class="k">历史记录</div><div class="v" id="statHistory">—</div></div>
+        <div class="stat"><div class="k">版本</div><div class="v" id="statVer" style="font-size:18px">—</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">快速开始</h3>
+        <p class="lead" style="margin:0">
+          左侧切换功能：<b>节点管理</b> 添加 SSH 节点 → <b>批量执行</b> 下发命令 →
+          <b>WebSSH</b> 打开交互终端。所有操作复用 CLI 同一套 russh 连接池与历史库。
+        </p>
+      </div>
+    </section>
+
+    <!-- 节点管理 -->
+    <section class="view" id="view-nodes">
+      <h1>节点管理</h1>
+      <p class="lead">节点存于 ~/.owl/nodes.json，与 CLI 共享</p>
+      <div class="card">
+        <h3 style="margin-top:0">添加节点</h3>
+        <div class="row">
+          <div class="field"><label>名称</label><input id="nName" placeholder="web01" style="width:130px"></div>
+          <div class="field"><label>地址</label><input id="nAddr" placeholder="10.0.0.11" style="width:150px"></div>
+          <div class="field"><label>用户</label><input id="nUser" value="root" style="width:90px"></div>
+          <div class="field"><label>端口</label><input id="nPort" type="number" value="22" style="width:80px"></div>
+          <div class="field"><label>分组(逗号)</label><input id="nGroups" placeholder="prod,web" style="width:140px"></div>
+          <div class="field"><label>私钥路径</label><input id="nKey" placeholder="~/.ssh/id_ed25519" style="width:190px"></div>
+          <button class="btn" id="btnAddNode">添加</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="field grow"><label>密码（无私钥时）</label><input id="nPass" type="password" placeholder="可选"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="bar" style="justify-content:space-between;margin-bottom:10px">
+          <h3 style="margin:0">节点列表 <span id="nodeCount" class="tag">0</span></h3>
+          <button class="btn ghost" id="btnRefreshNodes">刷新</button>
+        </div>
+        <div id="nodeList"></div>
+      </div>
+    </section>
+
+    <!-- 批量执行 -->
+    <section class="view" id="view-exec">
+      <h1>批量执行</h1>
+      <p class="lead">一次命令打多个节点，并发执行并汇总结果</p>
+      <div class="card">
+        <div class="field"><label>目标节点（留空则按下方条件/全部）</label><div id="execTargets" class="bar"></div></div>
+        <div class="field"><label>命令</label><textarea id="execCmd" rows="2" placeholder="hostname && whoami && uptime" style="width:100%"></textarea></div>
+        <div class="row">
+          <div class="field"><label>分组</label><input id="execGroups" placeholder="prod" style="width:140px"></div>
+          <div class="field"><label>标签</label><input id="execLabel" placeholder="env=prod" style="width:140px"></div>
+          <div class="field"><label>超时(秒)</label><input id="execTimeout" type="number" value="60" style="width:90px"></div>
+          <label style="display:flex;align-items:center;gap:6px;margin-bottom:0"><input type="checkbox" id="execAll" style="width:auto"> 全部节点</label>
+          <button class="btn" id="btnExec">执行</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">执行结果</h3>
+        <div id="execResult" class="empty">尚无执行结果</div>
+      </div>
+    </section>
+
+    <!-- WebSSH -->
+    <section class="view" id="view-ssh">
+      <h1>WebSSH 终端</h1>
+      <p class="lead">通过 WebSocket 直连节点交互式 Shell</p>
+      <div class="toolbar">
+        <select id="sshNode" style="min-width:180px"><option value="">选择节点…</option></select>
+        <select id="sshCols" style="width:auto"><option>100</option><option selected>120</option><option>160</option><option>200</option></select>
+        <span class="tag">列</span>
+        <select id="sshRows" style="width:auto"><option>24</option><option selected>32</option><option>40</option></select>
+        <span class="tag">行</span>
+        <button class="btn" id="btnConnect">连接</button>
+        <button class="btn ghost" id="btnDisconnect" disabled>断开</button>
+        <span id="sshStatus" class="tag">未连接</span>
+      </div>
+      <div class="term-wrap"><div id="terminal"></div></div>
+    </section>
+
+    <!-- 历史 -->
+    <section class="view" id="view-history">
+      <h1>执行历史</h1>
+      <p class="lead">来自 SQLite 历史库 ~/.owl/owl.db</p>
+      <div class="card">
+        <div class="bar" style="justify-content:space-between;margin-bottom:10px">
+          <div class="bar">
+            <label style="margin:0">条数</label>
+            <select id="histLimit" style="width:auto"><option>20</option><option selected>50</option><option>100</option><option>200</option></select>
+          </div>
+          <button class="btn ghost" id="btnRefreshHist">刷新</button>
+        </div>
+        <div id="histList"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (path, opts={}) => {
+  const r = await fetch(path, {headers:{'Content-Type':'application/json'}, ...opts});
+  let body; try { body = await r.json(); } catch { body = {}; }
+  if (!r.ok) throw new Error(body.error || ('HTTP '+r.status));
+  return body;
+};
+let toastTimer;
+function toast(msg, isErr=false){
+  const t=$('toast'); t.textContent=msg; t.style.borderColor=isErr?'var(--err)':'var(--ok)';
+  t.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 3200);
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); $('view-'+b.dataset.view).classList.add('active');
+  if(b.dataset.view==='nodes') loadNodes();
+  if(b.dataset.view==='history') loadHistory();
+  if(b.dataset.view==='exec') loadExecTargets();
+  if(b.dataset.view==='ssh') loadSshNodes();
+});
+
+async function loadHealth(){
+  try{
+    const h=await api('/api/health');
+    $('dot').className='dot on'; $('statusText').textContent='服务正常';
+    $('statStatus').textContent='运行中'; $('statVer').textContent='v'+h.version;
+  }catch(e){ $('dot').className='dot off'; $('statusText').textContent='服务异常'; }
+}
+async function loadDash(){
+  await loadHealth();
+  try{ const n=await api('/api/nodes'); $('statNodes').textContent=n.length; }catch{}
+  try{ const h=await api('/api/history?limit=500'); $('statHistory').textContent=(h.rows||[]).length; }catch{}
+}
+
+// ---- 节点 ----
+let nodesCache=[];
+async function loadNodes(){
+  try{
+    nodesCache=await api('/api/nodes');
+    $('nodeCount').textContent=nodesCache.length;
+    if(!nodesCache.length){ $('nodeList').innerHTML='<div class="empty">暂无节点，先在上方添加</div>'; return; }
+    $('nodeList').innerHTML='<table><thead><tr><th>名称</th><th>地址</th><th>用户</th><th>分组</th><th>来源</th><th style="width:170px">操作</th></tr></thead><tbody>'+
+      nodesCache.map(n=>`<tr>
+        <td class="mono"><b>${esc(n.name)}</b></td>
+        <td class="mono">${esc(n.address)}:${n.port}</td>
+        <td>${esc(n.user)}</td>
+        <td>${(n.groups||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')||'—'}</td>
+        <td><span class="tag">${esc(n.source)}</span></td>
+        <td><button class="btn ghost" onclick="pingNode('${esc(n.name)}')">Ping</button>
+            <button class="btn ghost" onclick="sshTo('${esc(n.name)}')">SSH</button>
+            <button class="btn danger" onclick="delNode('${esc(n.name)}')">删</button></td>
+      </tr>`).join('')+'</tbody></table>';
+  }catch(e){ toast(e.message,true); }
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+$('btnAddNode').onclick=async()=>{
+  const body={name:$('nName').value.trim(),address:$('nAddr').value.trim(),user:$('nUser').value.trim()||'root',
+    port:parseInt($('nPort').value)||22,groups:$('nGroups').value.split(',').map(s=>s.trim()).filter(Boolean),
+    ssh_key:$('nKey').value.trim(),ssh_password:$('nPass').value};
+  if(!body.name||!body.address){toast('请填名称与地址',true);return;}
+  try{ await api('/api/nodes',{method:'POST',body:JSON.stringify(body)});
+    toast('节点已添加'); ['nName','nAddr','nPass'].forEach(i=>$(i).value=''); loadNodes();
+  }catch(e){toast(e.message,true);}
+};
+$('btnRefreshNodes').onclick=loadNodes;
+async function delNode(name){
+  if(!confirm('删除节点 '+name+'?'))return;
+  try{ await api('/api/nodes/delete',{method:'POST',body:JSON.stringify({name})});
+    toast('已删除'); loadNodes(); }catch(e){toast(e.message,true);}
+}
+async function pingNode(name){
+  toast('正在 Ping '+name+'…');
+  try{ const r=await api('/api/nodes/ping',{method:'POST',body:JSON.stringify({name})});
+    toast((r.ok?'✓ ':'✗ ')+r.message,!r.ok); }catch(e){toast(e.message,true);}
+}
+function sshTo(name){
+  document.querySelector('nav button[data-view="ssh"]').click();
+  $('sshNode').value=name;
+}
+async function loadSshNodes(){
+  try{
+    const n=await api('/api/nodes'); const cur=$('sshNode').value;
+    $('sshNode').innerHTML='<option value="">选择节点…</option>'+n.map(x=>`<option value="${esc(x.name)}">${esc(x.name)} (${esc(x.address)})</option>`).join('');
+    if(cur)$('sshNode').value=cur;
+  }catch{}
+}
+
+// ---- 批量执行 ----
+async function loadExecTargets(){
+  try{
+    const n=await api('/api/nodes');
+    $('execTargets').innerHTML=n.length?n.map(x=>`<label style="display:inline-flex;gap:5px;align-items:center;margin:0 12px 6px 0">
+      <input type="checkbox" class="exec-t" value="${esc(x.name)}" style="width:auto"> ${esc(x.name)}</label>`).join('')
+      :'<span class="tag">暂无节点</span>';
+  }catch{}
+}
+$('btnExec').onclick=async()=>{
+  const nodes=[...document.querySelectorAll('.exec-t:checked')].map(x=>x.value);
+  const body={command:$('execCmd').value,nodes,groups:$('execGroups').value.split(',').map(s=>s.trim()).filter(Boolean),
+    label:$('execLabel').value.split(',').map(s=>s.trim()).filter(Boolean),all:$('execAll').checked,
+    timeout:parseInt($('execTimeout').value)||60};
+  if(!body.command.trim()){toast('请输入命令',true);return;}
+  $('btnExec').disabled=true; $('execResult').innerHTML='<div class="empty">执行中…</div>';
+  try{
+    const r=await api('/api/exec',{method:'POST',body:JSON.stringify(body)});
+    const rows=(r.results||[]).map(x=>`<tr>
+      <td class="mono">${esc(x.node_name)}</td>
+      <td><span class="badge ${x.success?'ok':'err'}">${x.success?'成功':'失败 '+(x.exit_code)}</span></td>
+      <td>${x.duration_ms} ms</td>
+      <td><pre class="out">${esc(x.stdout||x.stderr||'—')}</pre></td></tr>`).join('');
+    $('execResult').innerHTML=`<table><thead><tr><th>节点</th><th>状态</th><th>耗时</th><th>输出</th></tr></thead><tbody>${rows}</tbody></table>`;
+    toast(`执行完成：${r.total} 个节点`);
+  }catch(e){ $('execResult').innerHTML='<div class="empty">执行失败：'+esc(e.message)+'</div>'; toast(e.message,true); }
+  $('btnExec').disabled=false;
+};
+
+// ---- 历史 ----
+async function loadHistory(){
+  try{
+    const h=await api('/api/history?limit='+$('histLimit').value); const rows=h.rows||[];
+    if(!rows.length){$('histList').innerHTML='<div class="empty">暂无历史</div>';return;}
+    $('histList').innerHTML='<table><thead><tr><th>时间</th><th>节点</th><th>命令</th><th>退出码</th><th>状态</th></tr></thead><tbody>'+
+      rows.map(r=>`<tr><td class="mono">${esc((r.started_at||'').replace('T',' ').slice(0,19))}</td>
+        <td class="mono">${esc(r.node_name)}</td><td class="mono">${esc((r.command||'').slice(0,80))}</td>
+        <td>${r.exit_code}</td><td><span class="badge ${r.success?'ok':'err'}">${r.success?'成功':'失败'}</span></td></tr>`).join('')+'</tbody></table>';
+  }catch(e){toast(e.message,true);}
+}
+$('btnRefreshHist').onclick=loadHistory;
+$('histLimit').onchange=loadHistory;
+
+// ---- WebSSH ----
+let term=null, ws=null, fitAddon=null;
+function initTerminal(){
+  if(term)return;
+  if(typeof Terminal==='undefined'){ toast('xterm.js 加载失败（需联网 CDN）',true); return; }
+  term=new Terminal({cursorBlink:true,fontSize:13,fontFamily:"Consolas,'Courier New',monospace",
+    theme:{background:'#000000',foreground:'#dfe6f3',cursor:'#5b8cff'},
+    cols:parseInt($('sshCols').value),rows:parseInt($('sshRows').value)});
+  if(typeof FitAddon!=='undefined'){ fitAddon=new FitAddon.FitAddon(); term.loadAddon(fitAddon); }
+  term.open($('terminal'));
+  term.onData(d=>{ if(ws&&ws.readyState===1) ws.send(new TextEncoder().encode(d)); });
+  if(fitAddon)try{fitAddon.fit();}catch{}
+  window.addEventListener('resize',()=>{ if(fitAddon)try{fitAddon.fit();}catch{} });
+}
+$('btnConnect').onclick=()=>{
+  const node=$('sshNode').value; if(!node){toast('请选择节点',true);return;}
+  initTerminal(); if(!term)return;
+  if(ws)try{ws.close();}catch{}
+  term.clear();
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  const cols=fitAddon?term.cols:parseInt($('sshCols').value);
+  const rows=fitAddon?term.rows:parseInt($('sshRows').value);
+  const url=`${proto}//${location.host}/api/ws/ssh?node=${encodeURIComponent(node)}&cols=${cols}&rows=${rows}&term=xterm-256color`;
+  ws=new WebSocket(url); ws.binaryType='arraybuffer';
+  $('sshStatus').textContent='连接中…'; $('btnConnect').disabled=true; $('btnDisconnect').disabled=false;
+  ws.onopen=()=>term.focus();
+  ws.onmessage=(ev)=>{
+    if(typeof ev.data==='string'){
+      try{ const m=JSON.parse(ev.data);
+        if(m.type==='ready'){ $('sshStatus').textContent='已连接 '+m.node; toast('WebSSH 已连接 '+m.node); }
+        else if(m.type==='exit'){ $('sshStatus').textContent='已退出 ('+m.code+')'; }
+      }catch{ term.writeln(ev.data); }
+    }else{ const bytes=new Uint8Array(ev.data); term.write(bytes); }
+  };
+  ws.onclose=()=>{ $('sshStatus').textContent='已断开'; $('btnConnect').disabled=false; $('btnDisconnect').disabled=true; };
+  ws.onerror=()=>{ term.writeln('\r\n\x1b[31m连接错误\x1b[0m'); };
+};
+$('btnDisconnect').onclick=()=>{ if(ws){ ws.send(JSON.stringify({type:'eof'})); try{ws.close();}catch{} } };
+
+loadDash();
+</script>
+</body>
+</html>

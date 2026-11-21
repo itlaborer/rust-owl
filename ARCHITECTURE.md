@@ -11,9 +11,10 @@
 
 | 阶段 | 范围 | 状态 |
 |---|---|---|
-| **P1（本阶段）** | workspace 骨架、核心数据结构、命令树、配置、节点解析、批量执行框架、剧本解析/执行框架、历史库 schema、黑名单 | ✅ 骨架已产出 |
-| P2 | russh 真实 SSH/SFTP、连接池打通、剧本条件/循环完整求值、AI 助手（agent loop + tool calling + 多模型） | 待办 |
-| P3 | Web 控制台（原 cmd/plugins/serve）、监控告警闭环、TUI、DuckDB 分析后端 | 待办 |
+| **P1** | workspace 骨架、核心数据结构、命令树、配置、节点解析、批量执行框架、剧本解析/执行框架、历史库 schema、黑名单 | ✅ 完成 |
+| P2 | russh 真实 SSH/SFTP、连接池打通、剧本条件/循环完整求值 | ✅ SSH/SFTP/增量同步完成；AI 助手待办 |
+| **P3（部分）** | Web 控制台（原 cmd/plugins/serve）+ WebSSH | ✅ 已落地（owl-serve） |
+| P3（其余） | 监控告警闭环、TUI、DuckDB 分析后端 | 待办 |
 
 P1 覆盖原项目这些模块的结构还原：`internal/node`、`internal/ssh`、`internal/control/{command,blacklist,playbook,transfer,task,async}`、`internal/history`、`internal/common/config`、`cmd/cli/cmd`（命令树）。
 
@@ -57,6 +58,7 @@ owl-rs/
 │   ├── owl-playbook/           # YAML 剧本解析/执行（对应 control/playbook, pkg/playbook）
 │   ├── owl-transfer/           # 文件传输 + 扩散中继（对应 control/transfer）
 │   ├── owl-history/            # SQLite 历史（对应 internal/history）
+│   ├── owl-serve/              # Web 控制台 REST + WebSSH（对应 cmd/plugins/serve）
 │   └── owl-cli/                # clap 命令树入口（对应 cmd/cli）
 ```
 
@@ -68,11 +70,12 @@ owl-cli ─┬─> owl-playbook ─> owl-exec ─> owl-ssh ─> owl-node ─> ow
          └─> (all)
 ```
 
-**P3 预留 crate**（本骨架未建，按需加入 workspace）：
+**P3 其余预留 crate**（按需加入 workspace）：
 - `owl-ai` —— AI 助手（对应 internal/ai，1.5 万行，最复杂，单独一期）
-- `owl-serve` —— Web 控制台（对应 cmd/plugins/serve，3.3 万行）
 - `owl-monitor` —— 监控告警（对应 internal/monitor，1 万行）
 - `owl-tui` —— 终端界面
+
+**已落地：`owl-serve`**（见 §6.8）。
 
 ---
 
@@ -237,3 +240,53 @@ cargo build --release
 - **DuckDB / CGO**：分析后端需 C++ 工具链，不能随主 CLI 一起交叉编译，保持 feature 隔离（`owl-history/duckdb`）。
 - **AI 模块复杂度**：原 `internal/ai` 1.5 万行（agent loop、73KB tools.go、intent 路由），单独一期，避免拖慢 P1 交付。
 - **i18n / 字符编码**：原项目有独立的消息目录 + GBK/Big5 编码处理（`internal/i18n`、`internal/encoding`），Rust 侧 P2 用 `fluent`/`sys-locale` + `encoding_rs` 对齐。
+
+---
+
+## 9. Web 控制台 + WebSSH（owl-serve，2026-11-22 落地）
+
+对应原项目 `cmd/plugins/serve`（3.3 万行 Go），Rust 侧用 axum 精简实现，复用已有的 owl-node / owl-ssh / owl-exec / owl-history，不重复造轮子。
+
+### 9.1 crate 结构
+```
+owl-serve/
+├── src/
+│   ├── lib.rs      # run(host, port, token, timeout) 启动入口
+│   ├── state.rs    # AppState：节点表(RwLock) + resolver + 可选令牌 + DB 路径
+│   ├── api.rs      # axum Router + REST handlers + Bearer/?token 鉴权中间件
+│   ├── ws.rs       # /api/ws/ssh WebSocket <-> 交互式 SSH shell 桥接
+│   └── web.rs      # 内嵌 assets/index.html 单页 UI
+└── assets/index.html  # 自包含前端（概览/节点/批量执行/WebSSH/历史 五视图）
+```
+
+### 9.2 交互式 Shell 底座（owl-ssh/shell.rs）
+在已认证的 `SshSession` 上新开 session channel → `request_pty` → `request_shell`，
+然后 `channel.split()` 成读半/写半，用两个 tokio task 桥接成 mpsc：
+- 读半 task：`wait()` 收 `ChannelMsg::{Data, ExtendedData, ExitStatus, ExitSignal, Eof}`，转成 `ShellEvent` 推给 WebSocket。
+- 写半 task：从 mpsc 收 `ShellInput::{Data, Resize, Eof}`，调 `data_bytes` / `window_change` / `eof`。
+- 上层 WebSocket 只面对字节流 mpsc，不接触 russh 类型。
+- API 校验要点（russh 0.65.2）：channel 方法是 request_shell（非 shell）、eof（非 send_eof）、
+  pty modes 传 `[(Pty::TTY_OP_END, 0)]`；`channel_open_session()` 返回 `Channel<client::Msg>`。
+
+### 9.3 REST 端点
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | /api/health | 健康检查 + 版本 |
+| GET/POST | /api/nodes | 列出 / 新增节点（落 nodes.json，与 CLI 共享） |
+| POST | /api/nodes/delete | 删除节点 |
+| POST | /api/nodes/ping | 真实 SSH 连通性测试 |
+| POST | /api/exec | 批量执行（复用 BatchExecutor + 黑名单 + 落历史库） |
+| GET | /api/history?limit= | 查询执行历史 |
+| WS | /api/ws/ssh?node=&cols=&rows=&term= | WebSSH 交互终端 |
+
+鉴权：`--token`（或 `OWL_WEB_TOKEN`）启用后，HTTP 走 `Authorization: Bearer` / `?token=`，WS 走 `?token=`；不设则不鉴权（仅建议本机）。
+
+### 9.4 前端
+单页 HTML，五个视图，xterm.js + fit addon 走 jsdelivr CDN（离线需替换脚本地址）。
+WebSSH 传输约定：客户端 Binary 帧 = 键盘字节，Text 帧 = `{type:resize|eof}` JSON；
+服务端 Binary 帧 = 终端输出，Text 帧 = `{type:ready|exit}` JSON。
+
+### 9.5 构建踩坑（本次）
+- axum 依赖树大，首次 `cargo check` 会因联网更新 index 卡住（日志停在 manifest warning、CPU 停滞、target 零写入）。
+  解法：`cargo check --offline`（依赖已在 registry 缓存），正常推进。
+- 历史遗留 116 个 `HasExited=true` 的 rustc 内核对象残留，Stop-Process 清不掉但不消耗 CPU、不阻塞编译，无需处理。

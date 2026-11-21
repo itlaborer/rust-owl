@@ -4,6 +4,8 @@
 
 pub mod connection;
 pub mod executor;
+pub mod shell;
 
 pub use connection::{ConnectionManager, SshSession};
 pub use executor::{CommandOutput, Executor, NativeExecutor};
+pub use shell::{ShellChannel, ShellEvent, ShellInput};
