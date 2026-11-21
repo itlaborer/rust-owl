@@ -1514,7 +1514,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "owl-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1537,7 +1537,7 @@ dependencies = [
 
 [[package]]
 name = "owl-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1553,7 +1553,7 @@ dependencies = [
 
 [[package]]
 name = "owl-exec"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1573,7 +1573,7 @@ dependencies = [
 
 [[package]]
 name = "owl-history"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1589,7 +1589,7 @@ dependencies = [
 
 [[package]]
 name = "owl-node"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -1605,7 +1605,7 @@ dependencies = [
 
 [[package]]
 name = "owl-playbook"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1624,7 +1624,7 @@ dependencies = [
 
 [[package]]
 name = "owl-serve"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1647,7 +1647,7 @@ dependencies = [
 
 [[package]]
 name = "owl-ssh"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1664,7 +1664,7 @@ dependencies = [
 
 [[package]]
 name = "owl-transfer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",

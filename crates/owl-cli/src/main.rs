@@ -9,7 +9,7 @@ use std::collections::HashMap;
 #[derive(Parser)]
 #[command(
     name = "owl",
-    version = "0.1.0",
+    version = env!("CARGO_PKG_VERSION"),
     about = "智能分布式运维工具 (Rust 重写版)"
 )]
 struct Cli {
