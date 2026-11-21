@@ -17,7 +17,7 @@ edition = "2021"
 rust-version = "1.85"
 license = "MIT"
 authors = ["owl-rs contributors"]
-repository = "https://github.com/cangyunye/go-owl"
+repository = "https://github.com/itlaborer/rust-owl"
 
 # 依赖版本集中在 workspace 统一管理，避免各 crate 版本漂移。
 [workspace.dependencies]
